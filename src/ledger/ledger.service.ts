@@ -141,6 +141,27 @@ export class LedgerService implements OnModuleInit {
     return res.data;
   }
 
+  // --- Admin ---
+
+  /**
+   * Elimina y recrea el ledger — borra todas las transacciones, cuentas y logs
+   */
+  async resetLedger() {
+    try {
+      await this.client.delete(`/${this.ledgerName}`);
+      this.logger.log(`Ledger "${this.ledgerName}" deleted`);
+    } catch (e) {
+      this.logger.warn(`Ledger delete: ${e.response?.status} ${e.message}`);
+    }
+
+    try {
+      await this.client.post(`/${this.ledgerName}`);
+      this.logger.log(`Ledger "${this.ledgerName}" recreated`);
+    } catch (e) {
+      this.logger.warn(`Ledger recreate: ${e.response?.status} ${e.message}`);
+    }
+  }
+
   // --- Metadata ---
 
   async setAccountMetadata(address: string, metadata: Record<string, string>) {

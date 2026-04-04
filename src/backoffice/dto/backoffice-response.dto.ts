@@ -167,6 +167,6 @@ export class FeeTransactionResponseDto {
 }
 
 export class ResetResponseDto {
-  @ApiProperty({ example: 'Database reset — merchants table truncated' })
+  @ApiProperty({ example: 'Database and ledger reset — all data deleted' })
   message: string;
 }

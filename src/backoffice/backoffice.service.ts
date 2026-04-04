@@ -284,12 +284,14 @@ export class BackofficeService {
   // ──────────────────────────────────────────────────────────────────────────
 
   /**
-   * Truncate DB y re-siembra merchants semilla
+   * Truncate DB + reset ledger — borra todos los datos, preserva enums y schema
    */
   async resetDatabase() {
-    await this.prisma.$executeRaw`TRUNCATE TABLE merchants RESTART IDENTITY CASCADE`;
-    const seeded = await this.seedDatabase();
-    return { message: 'Database reset — merchants table truncated and reseeded', seeded };
+    await Promise.all([
+      this.prisma.$executeRaw`TRUNCATE TABLE merchants RESTART IDENTITY CASCADE`,
+      this.ledger.resetLedger(),
+    ]);
+    return { message: 'Database and ledger reset — all data deleted' };
   }
 
   /**
