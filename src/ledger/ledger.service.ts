@@ -95,14 +95,19 @@ export class LedgerService implements OnModuleInit {
   async getAllTransactions(): Promise<any[]> {
     const all: any[] = [];
     let cursor: string | undefined;
-    do {
-      const res = await this.client.get(`/${this.ledgerName}/transactions`, {
-        params: { pageSize: 100, ...(cursor ? { after: cursor } : {}) },
-      });
-      const page = res.data.cursor;
-      all.push(...page.data);
-      cursor = page.hasMore ? page.next : undefined;
-    } while (cursor);
+    try {
+      do {
+        const res = await this.client.get(`/${this.ledgerName}/transactions`, {
+          params: { pageSize: 100, ...(cursor ? { after: cursor } : {}) },
+        });
+        const page = res.data.cursor;
+        all.push(...page.data);
+        cursor = page.hasMore ? page.next : undefined;
+      } while (cursor);
+    } catch (e) {
+      if (e.response?.status === 404) return [];
+      throw e;
+    }
     return all;
   }
 
@@ -123,8 +128,13 @@ export class LedgerService implements OnModuleInit {
   }
 
   async getBalance(address: string): Promise<Record<string, { input: number; output: number }>> {
-    const account = await this.getAccount(address, { expand: 'volumes' });
-    return account?.data?.volumes || {};
+    try {
+      const account = await this.getAccount(address, { expand: 'volumes' });
+      return account?.data?.volumes || {};
+    } catch (e) {
+      if (e.response?.status === 404) return {};
+      throw e;
+    }
   }
 
   async getAvailableBalance(address: string, asset = 'USD/2'): Promise<number> {
