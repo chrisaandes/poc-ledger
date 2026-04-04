@@ -63,8 +63,8 @@ export class LedgerService implements OnModuleInit {
 
   // --- Accounts ---
 
-  async getAccount(address: string) {
-    const res = await this.client.get(`/${this.ledgerName}/accounts/${address}`);
+  async getAccount(address: string, params?: Record<string, string>) {
+    const res = await this.client.get(`/${this.ledgerName}/accounts/${address}`, { params });
     return res.data;
   }
 
@@ -78,7 +78,7 @@ export class LedgerService implements OnModuleInit {
   }
 
   async getBalance(address: string): Promise<Record<string, { input: number; output: number }>> {
-    const account = await this.getAccount(address);
+    const account = await this.getAccount(address, { expand: 'volumes' });
     return account?.data?.volumes || {};
   }
 
