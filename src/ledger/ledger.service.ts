@@ -1,0 +1,190 @@
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import axios, { AxiosInstance } from 'axios';
+
+export interface Posting {
+  source: string;
+  destination: string;
+  amount: number;
+  asset: string;
+}
+
+export interface CreateTransactionDto {
+  postings: Posting[];
+  metadata?: Record<string, string>;
+  reference?: string;
+}
+
+@Injectable()
+export class LedgerService implements OnModuleInit {
+  private client: AxiosInstance;
+  private ledgerName: string;
+  private readonly logger = new Logger(LedgerService.name);
+
+  constructor() {
+    const baseURL = process.env.LEDGER_URL || 'http://localhost:8080/api/ledger/v2';
+    this.ledgerName = process.env.LEDGER_NAME || 'bendo';
+    this.client = axios.create({ baseURL, headers: { 'Content-Type': 'application/json' } });
+  }
+
+  async onModuleInit() {
+    try {
+      await this.client.post(`/${this.ledgerName}`);
+      this.logger.log(`Ledger "${this.ledgerName}" created`);
+    } catch (e) {
+      // 409 = already exists, fine
+      if (e.response?.status !== 409) {
+        this.logger.warn(`Ledger init: ${e.message}`);
+      }
+      this.logger.log(`Ledger "${this.ledgerName}" already exists`);
+    }
+  }
+
+  // --- Transactions ---
+
+  async createTransaction(data: CreateTransactionDto) {
+    const res = await this.client.post(`/${this.ledgerName}/transactions`, data);
+    return res.data;
+  }
+
+  async getTransaction(txId: number) {
+    const res = await this.client.get(`/${this.ledgerName}/transactions/${txId}`);
+    return res.data;
+  }
+
+  async listTransactions(params?: {
+    pageSize?: number;
+    after?: string;
+    account?: string;
+    reference?: string;
+  }) {
+    const res = await this.client.get(`/${this.ledgerName}/transactions`, { params });
+    return res.data;
+  }
+
+  // --- Accounts ---
+
+  async getAccount(address: string) {
+    const res = await this.client.get(`/${this.ledgerName}/accounts/${address}`);
+    return res.data;
+  }
+
+  async listAccounts(params?: {
+    pageSize?: number;
+    after?: string;
+    address?: string;
+  }) {
+    const res = await this.client.get(`/${this.ledgerName}/accounts`, { params });
+    return res.data;
+  }
+
+  async getBalance(address: string): Promise<Record<string, { input: number; output: number }>> {
+    const account = await this.getAccount(address);
+    return account?.data?.volumes || {};
+  }
+
+  async getAvailableBalance(address: string, asset = 'USD/2'): Promise<number> {
+    const volumes = await this.getBalance(address);
+    const vol = volumes[asset];
+    if (!vol) return 0;
+    return (vol.input || 0) - (vol.output || 0);
+  }
+
+  // --- Logs ---
+
+  async listLogs(params?: { pageSize?: number; after?: string }) {
+    const res = await this.client.get(`/${this.ledgerName}/logs`, { params });
+    return res.data;
+  }
+
+  // --- Metadata ---
+
+  async setAccountMetadata(address: string, metadata: Record<string, string>) {
+    const res = await this.client.post(`/${this.ledgerName}/accounts/${address}/metadata`, metadata);
+    return res.data;
+  }
+
+  // --- Helpers ---
+
+  /**
+   * Crea un cobro con split de comisión.
+   * amount en centavos (USD/2): $100 = 10000
+   */
+  async createCharge(merchantId: string, amount: number, commissionPct: number, reference?: string) {
+    const feeAmount = Math.round(amount * (commissionPct / 100));
+    const merchantAmount = amount - feeAmount;
+
+    const postings: Posting[] = [
+      {
+        source: 'world',
+        destination: `merchants:${merchantId}:available`,
+        amount: merchantAmount,
+        asset: 'USD/2',
+      },
+    ];
+
+    if (feeAmount > 0) {
+      postings.push({
+        source: 'world',
+        destination: `bendo:fees`,
+        amount: feeAmount,
+        asset: 'USD/2',
+      });
+    }
+
+    return this.createTransaction({
+      postings,
+      reference,
+      metadata: {
+        type: 'charge',
+        merchantId,
+        totalAmount: String(amount),
+        feeAmount: String(feeAmount),
+        commissionPct: String(commissionPct),
+      },
+    });
+  }
+
+  /**
+   * Mueve fondos de available a withdrawals (hold para retiro)
+   */
+  async createWithdrawal(merchantId: string, amount: number, reference?: string) {
+    return this.createTransaction({
+      postings: [
+        {
+          source: `merchants:${merchantId}:available`,
+          destination: `merchants:${merchantId}:withdrawals`,
+          amount,
+          asset: 'USD/2',
+        },
+      ],
+      reference,
+      metadata: {
+        type: 'withdrawal',
+        merchantId,
+        amount: String(amount),
+      },
+    });
+  }
+
+  /**
+   * Confirma retiro: de withdrawals a banco
+   */
+  async confirmWithdrawal(merchantId: string, amount: number, reference?: string) {
+    return this.createTransaction({
+      postings: [
+        {
+          source: `merchants:${merchantId}:withdrawals`,
+          destination: 'bank:settlements',
+          amount,
+          asset: 'USD/2',
+        },
+      ],
+      reference,
+      metadata: {
+        type: 'withdrawal_confirmed',
+        merchantId,
+        amount: String(amount),
+      },
+    });
+  }
+}
