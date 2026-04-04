@@ -46,6 +46,6 @@ export class CheckoutService {
 
   async getTransactions(merchantId: string) {
     await this.merchants.findOne(merchantId); // valida que existe
-    return this.ledger.listTransactions({ account: `merchants:${merchantId}:available` });
+    return this.ledger.listTransactions({ merchantId });
   }
 }

@@ -66,7 +66,7 @@ export class WalletService {
       throw new BadRequestException('Wallet not enabled for this merchant');
     }
 
-    return this.ledger.listTransactions({ account: `merchants:${merchantId}:available` });
+    return this.ledger.listTransactions({ merchantId });
   }
 
   /**

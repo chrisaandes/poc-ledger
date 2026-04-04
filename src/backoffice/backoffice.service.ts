@@ -41,18 +41,15 @@ export class BackofficeService {
     let transactions = null;
 
     try {
-      available = await this.ledger.getAccount(`merchants:${merchantId}:available`);
+      available = await this.ledger.getAccount(`merchants:${merchantId}:available`, { expand: 'volumes' });
     } catch {}
 
     try {
-      withdrawals = await this.ledger.getAccount(`merchants:${merchantId}:withdrawals`);
+      withdrawals = await this.ledger.getAccount(`merchants:${merchantId}:withdrawals`, { expand: 'volumes' });
     } catch {}
 
     try {
-      transactions = await this.ledger.listTransactions({
-        account: `merchants:${merchantId}:available`,
-        pageSize: 50,
-      });
+      transactions = await this.ledger.listTransactions({ merchantId, pageSize: 50 });
     } catch {}
 
     return {
@@ -77,12 +74,10 @@ export class BackofficeService {
     let feesAccount: any = null;
 
     try {
-      feesAccount = await this.ledger.getAccount('bendo:fees');
+      feesAccount = await this.ledger.getAvailableBalance('bendo:fees');
     } catch {}
 
-    const totalFees = feesAccount?.data?.volumes?.['USD/2']
-      ? (feesAccount.data.volumes['USD/2'].input || 0) - (feesAccount.data.volumes['USD/2'].output || 0)
-      : 0;
+    const totalFees = feesAccount ?? 0;
 
     return {
       totalMerchants: merchants.length,

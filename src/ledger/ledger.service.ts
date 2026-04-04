@@ -55,10 +55,26 @@ export class LedgerService implements OnModuleInit {
     pageSize?: number;
     after?: string;
     account?: string;
+    destination?: string;
+    source?: string;
     reference?: string;
+    merchantId?: string; // client-side filter
   }) {
-    const res = await this.client.get(`/${this.ledgerName}/transactions`, { params });
-    return res.data;
+    const { merchantId, ...queryParams } = params ?? {};
+    const res = await this.client.get(`/${this.ledgerName}/transactions`, { params: queryParams });
+    const data = res.data;
+
+    if (merchantId) {
+      data.cursor.data = data.cursor.data.filter((tx: any) =>
+        tx.metadata?.merchantId === merchantId ||
+        tx.postings?.some((p: any) =>
+          p.destination?.startsWith(`merchants:${merchantId}:`) ||
+          p.source?.startsWith(`merchants:${merchantId}:`),
+        ),
+      );
+    }
+
+    return data;
   }
 
   // --- Accounts ---
