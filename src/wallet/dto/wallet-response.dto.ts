@@ -21,13 +21,22 @@ export class WithdrawResponseDto {
   @ApiProperty({ example: 'a2b1f078-bed1-44e5-86d5-63529326a730' })
   merchantId: string;
 
-  @ApiProperty({ example: 66930, description: 'Monto retirado en centavos' })
-  amount: number;
+  @ApiProperty({ example: 66930, description: 'Monto bruto solicitado en centavos (se descuenta del saldo disponible)' })
+  requestedAmount: number;
+
+  @ApiProperty({ example: 1.5, description: 'Fee de retiro aplicado (%)' })
+  withdrawalFeePct: number;
+
+  @ApiProperty({ example: 1004, description: 'Fee de Bendo descontado del retiro en centavos' })
+  feeAmount: number;
+
+  @ApiProperty({ example: 65926, description: 'Monto neto enviado a bank:settlements en centavos (requestedAmount - feeAmount)' })
+  netAmount: number;
 
   @ApiProperty({ example: 'withdrawal_a2b1f078_1775335035299', description: 'Referencia única del retiro en el ledger' })
   reference: string;
 
-  @ApiProperty({ example: 'completed', description: 'Estado del retiro. El flujo available→withdrawals→bank:settlements es síncrono.' })
+  @ApiProperty({ example: 'completed', description: 'Estado del retiro. El flujo available→withdrawals→(bendo:fees + bank:settlements) es síncrono.' })
   status: string;
 
   @ApiProperty({ example: '2026-04-04T21:00:00.000Z' })

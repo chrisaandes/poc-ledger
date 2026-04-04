@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { LedgerService } from '../ledger/ledger.service';
 import { MerchantsService } from '../merchants/merchants.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { SEED_MERCHANTS } from './seed.data';
 
 @Injectable()
 export class BackofficeService {
@@ -206,11 +207,22 @@ export class BackofficeService {
   // ──────────────────────────────────────────────────────────────────────────
 
   /**
-   * Truncate DB — elimina todos los merchants (solo testing)
+   * Truncate DB y re-siembra merchants semilla
    */
   async resetDatabase() {
     await this.prisma.$executeRaw`TRUNCATE TABLE merchants RESTART IDENTITY CASCADE`;
-    return { message: 'Database reset — merchants table truncated' };
+    const seeded = await this.seedDatabase();
+    return { message: 'Database reset — merchants table truncated and reseeded', seeded };
+  }
+
+  /**
+   * Crea los merchants semilla definidos en seed.data.ts
+   */
+  async seedDatabase() {
+    const created = await Promise.all(
+      SEED_MERCHANTS.map((data) => this.merchants.create(data)),
+    );
+    return created.map((m) => ({ id: m.id, name: m.name, type: m.type }));
   }
 
   /**

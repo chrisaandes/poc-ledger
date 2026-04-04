@@ -25,6 +25,13 @@ export class CreateMerchantDto {
   @IsOptional()
   commissionPct?: number;
 
+  @ApiPropertyOptional({ example: 1.5, description: 'Fee de retiro Bendo (%). Se descuenta del monto retirado. Default: 0.' })
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  @IsOptional()
+  withdrawalFeePct?: number;
+
   @ApiPropertyOptional({ default: false })
   @IsBoolean()
   @IsOptional()

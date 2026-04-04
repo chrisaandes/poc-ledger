@@ -212,23 +212,43 @@ export class LedgerService implements OnModuleInit {
   }
 
   /**
-   * Confirma retiro: de withdrawals a banco
+   * Confirma retiro: de withdrawals a banco, con split de fee a bendo:fees si aplica.
+   * netAmount = amount - feeAmount
    */
-  async confirmWithdrawal(merchantId: string, amount: number, reference?: string) {
+  async confirmWithdrawal(
+    merchantId: string,
+    amount: number,
+    feeAmount: number,
+    reference?: string,
+  ) {
+    const netAmount = amount - feeAmount;
+    const postings: Posting[] = [
+      {
+        source: `merchants:${merchantId}:withdrawals`,
+        destination: 'bank:settlements',
+        amount: netAmount,
+        asset: 'USD/2',
+      },
+    ];
+
+    if (feeAmount > 0) {
+      postings.push({
+        source: `merchants:${merchantId}:withdrawals`,
+        destination: 'bendo:fees',
+        amount: feeAmount,
+        asset: 'USD/2',
+      });
+    }
+
     return this.createTransaction({
-      postings: [
-        {
-          source: `merchants:${merchantId}:withdrawals`,
-          destination: 'bank:settlements',
-          amount,
-          asset: 'USD/2',
-        },
-      ],
+      postings,
       reference,
       metadata: {
         type: 'withdrawal_confirmed',
         merchantId,
-        amount: String(amount),
+        grossAmount: String(amount),
+        feeAmount: String(feeAmount),
+        netAmount: String(netAmount),
       },
     });
   }

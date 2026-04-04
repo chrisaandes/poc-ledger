@@ -85,17 +85,23 @@ export class WalletService {
       throw new BadRequestException(`Insufficient funds. Available: ${available}, Requested: ${amount}`);
     }
 
+    const withdrawalFeePct = merchant.withdrawalFeePct ?? 0;
+    const feeAmount = Math.round(amount * (withdrawalFeePct / 100));
+    const netAmount = amount - feeAmount;
     const reference = `withdrawal_${merchantId}_${Date.now()}`;
 
-    // Hold: available → withdrawals
+    // Hold: available → withdrawals (monto bruto)
     await this.ledger.createWithdrawal(merchantId, amount, reference);
 
-    // Confirm: withdrawals → bank (simulado, en prod sería async)
-    await this.ledger.confirmWithdrawal(merchantId, amount, `${reference}_confirmed`);
+    // Confirm: withdrawals → bank:settlements (neto) + bendo:fees (fee)
+    await this.ledger.confirmWithdrawal(merchantId, amount, feeAmount, `${reference}_confirmed`);
 
     return {
       merchantId,
-      amount,
+      requestedAmount: amount,
+      withdrawalFeePct,
+      feeAmount,
+      netAmount,
       reference,
       status: 'completed',
       timestamp: new Date().toISOString(),

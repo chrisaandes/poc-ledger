@@ -23,8 +23,9 @@ model Merchant {
   id              String          @id @default(uuid())
   name            String
   type            MerchantType    @default(OTRO)
-  commissionPct   Float           @default(3.0) @map("commission_pct")
-  walletEnabled   Boolean         @default(false) @map("wallet_enabled")
+  commissionPct      Float           @default(3.0) @map("commission_pct")
+  withdrawalFeePct   Float           @default(0) @map("withdrawal_fee_pct")
+  walletEnabled      Boolean         @default(false) @map("wallet_enabled")
   status          MerchantStatus  @default(ACTIVE)
   metadata        Json?
   createdAt       DateTime        @default(now()) @map("created_at")

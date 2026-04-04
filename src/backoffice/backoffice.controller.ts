@@ -1,4 +1,4 @@
-import { Controller, Delete, Get, Param, Query } from '@nestjs/common';
+import { Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 import {
   ApiTags, ApiOperation, ApiQuery, ApiParam,
   ApiResponse, ApiNotFoundResponse,
@@ -153,14 +153,24 @@ export class BackofficeController {
 
   // ── Admin ─────────────────────────────────────────────────────────────────
 
+  @Post('seed')
+  @ApiOperation({
+    summary: 'Sembrar merchants base (demo)',
+    description: 'Crea los merchants semilla definidos en `seed.data.ts` — uno por cada tipo de vertical (SALUD, RETAIL, EDUCACION, OTRO). Idempotente si no hay merchants previos.',
+  })
+  @ApiResponse({ status: 201, description: 'Merchants semilla creados' })
+  seed() {
+    return this.service.seedDatabase();
+  }
+
   @Delete('reset')
   @ApiOperation({
     summary: 'Reset de base de datos (solo para testing)',
     description:
-      '⚠️ **DESTRUCTIVO** — Ejecuta `TRUNCATE TABLE merchants RESTART IDENTITY CASCADE`. ' +
-      'Elimina todos los merchants de PostgreSQL. **No afecta al ledger Formance** (las transacciones históricas persisten en el servidor externo).',
+      '⚠️ **DESTRUCTIVO** — Ejecuta `TRUNCATE TABLE merchants RESTART IDENTITY CASCADE` y re-siembra los merchants semilla automáticamente. ' +
+      '**No afecta al ledger Formance** (las transacciones históricas persisten en el servidor externo).',
   })
-  @ApiResponse({ status: 200, description: 'Base de datos reseteada', type: ResetResponseDto })
+  @ApiResponse({ status: 200, description: 'Base de datos reseteada y re-sembrada', type: ResetResponseDto })
   reset() {
     return this.service.resetDatabase();
   }

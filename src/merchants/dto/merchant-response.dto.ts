@@ -10,8 +10,11 @@ export class MerchantResponseDto {
   @ApiProperty({ enum: ['SALUD', 'RETAIL', 'EDUCACION', 'OTRO'], example: 'SALUD' })
   type: string;
 
-  @ApiProperty({ example: 3.0, description: 'Comisión Bendo (%)' })
+  @ApiProperty({ example: 3.0, description: 'Comisión Bendo sobre cobros (%)' })
   commissionPct: number;
+
+  @ApiProperty({ example: 1.5, description: 'Fee de retiro Bendo (%). Se descuenta del monto retirado. 0 = sin fee.' })
+  withdrawalFeePct: number;
 
   @ApiProperty({ example: true, description: 'Indica si el merchant tiene wallet habilitada' })
   walletEnabled: boolean;
