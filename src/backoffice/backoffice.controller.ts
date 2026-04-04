@@ -56,6 +56,30 @@ export class BackofficeController {
     });
   }
 
+  @Get('earnings')
+  @ApiOperation({ summary: 'Resumen global de ganancias de Bendo (fees cobrados)' })
+  getEarningsSummary() {
+    return this.service.getEarningsSummary();
+  }
+
+  @Get('earnings/merchants')
+  @ApiOperation({ summary: 'Fees desglosados por merchant — volumen, comisión y payout' })
+  getEarningsByMerchant() {
+    return this.service.getEarningsByMerchant();
+  }
+
+  @Get('earnings/by-type')
+  @ApiOperation({ summary: 'Fees agrupados por tipo de merchant (SALUD, RETAIL, EDUCACION, OTRO)' })
+  getEarningsByType() {
+    return this.service.getEarningsByType();
+  }
+
+  @Get('earnings/transactions')
+  @ApiOperation({ summary: 'Detalle de cada fee cobrado — one row per charge' })
+  getFeeTransactions() {
+    return this.service.getFeeTransactions();
+  }
+
   @Delete('reset')
   @ApiOperation({ summary: 'Truncate DB — elimina todos los merchants (solo para testing)' })
   reset() {

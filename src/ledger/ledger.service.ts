@@ -92,6 +92,20 @@ export class LedgerService implements OnModuleInit {
     return { cursor: { pageSize: filtered.length, hasMore: false, data: filtered } };
   }
 
+  async getAllTransactions(): Promise<any[]> {
+    const all: any[] = [];
+    let cursor: string | undefined;
+    do {
+      const res = await this.client.get(`/${this.ledgerName}/transactions`, {
+        params: { pageSize: 100, ...(cursor ? { after: cursor } : {}) },
+      });
+      const page = res.data.cursor;
+      all.push(...page.data);
+      cursor = page.hasMore ? page.next : undefined;
+    } while (cursor);
+    return all;
+  }
+
   // --- Accounts ---
 
   async getAccount(address: string, params?: Record<string, string>) {
