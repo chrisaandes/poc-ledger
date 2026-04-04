@@ -58,23 +58,38 @@ export class LedgerService implements OnModuleInit {
     destination?: string;
     source?: string;
     reference?: string;
-    merchantId?: string; // client-side filter
+    merchantId?: string; // client-side filter — Formance v2.4.0 ignores server-side filters
   }) {
     const { merchantId, ...queryParams } = params ?? {};
-    const res = await this.client.get(`/${this.ledgerName}/transactions`, { params: queryParams });
-    const data = res.data;
 
-    if (merchantId) {
-      data.cursor.data = data.cursor.data.filter((tx: any) =>
-        tx.metadata?.merchantId === merchantId ||
-        tx.postings?.some((p: any) =>
-          p.destination?.startsWith(`merchants:${merchantId}:`) ||
-          p.source?.startsWith(`merchants:${merchantId}:`),
-        ),
-      );
+    if (!merchantId) {
+      const res = await this.client.get(`/${this.ledgerName}/transactions`, { params: queryParams });
+      return res.data;
     }
 
-    return data;
+    // Paginate through ALL pages to filter by merchantId client-side
+    // (Formance v2.4.0 ignores account/destination/metadata query params)
+    const allTxs: any[] = [];
+    let cursor: string | undefined;
+
+    do {
+      const res = await this.client.get(`/${this.ledgerName}/transactions`, {
+        params: { pageSize: 100, ...(cursor ? { after: cursor } : {}) },
+      });
+      const page = res.data.cursor;
+      allTxs.push(...page.data);
+      cursor = page.hasMore ? page.next : undefined;
+    } while (cursor);
+
+    const filtered = allTxs.filter((tx: any) =>
+      tx.metadata?.merchantId === merchantId ||
+      tx.postings?.some((p: any) =>
+        p.destination?.startsWith(`merchants:${merchantId}:`) ||
+        p.source?.startsWith(`merchants:${merchantId}:`),
+      ),
+    );
+
+    return { cursor: { pageSize: filtered.length, hasMore: false, data: filtered } };
   }
 
   // --- Accounts ---
