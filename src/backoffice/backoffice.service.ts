@@ -76,64 +76,105 @@ export class BackofficeService {
     return all.filter((tx) => tx.metadata?.type === 'charge');
   }
 
+  private async getWithdrawalFeeTxs() {
+    const all = await this.ledger.getAllTransactions();
+    return all.filter(
+      (tx) => tx.metadata?.type === 'withdrawal_confirmed' && Number(tx.metadata?.feeAmount) > 0,
+    );
+  }
+
   /**
-   * Resumen global de ganancias de Bendo
+   * Resumen global de ganancias de Bendo — cobros + fees de retiro
    */
   async getEarningsSummary() {
-    const [charges, totalFeesBalance] = await Promise.all([
+    const [charges, withdrawalFeeTxs, feesInAccount] = await Promise.all([
       this.getChargeTxs(),
+      this.getWithdrawalFeeTxs(),
       this.ledger.getAvailableBalance('bendo:fees'),
     ]);
 
-    const totalVolume = charges.reduce((s, tx) => s + Number(tx.metadata.totalAmount), 0);
-    const totalFees = charges.reduce((s, tx) => s + Number(tx.metadata.feeAmount), 0);
+    const chargeVolume = charges.reduce((s, tx) => s + Number(tx.metadata.totalAmount), 0);
+    const chargeFees = charges.reduce((s, tx) => s + Number(tx.metadata.feeAmount), 0);
     const avgCommission =
       charges.length > 0
         ? charges.reduce((s, tx) => s + Number(tx.metadata.commissionPct), 0) / charges.length
         : 0;
 
+    const withdrawalVolume = withdrawalFeeTxs.reduce(
+      (s, tx) => s + Number(tx.metadata.grossAmount ?? tx.metadata.totalAmount), 0,
+    );
+    const withdrawalFees = withdrawalFeeTxs.reduce(
+      (s, tx) => s + Number(tx.metadata.feeAmount), 0,
+    );
+
     return {
       chargeCount: charges.length,
-      totalVolume,
-      totalFeesEarned: totalFees,
-      feesInAccount: totalFeesBalance,
+      withdrawalFeeCount: withdrawalFeeTxs.length,
+      chargeVolume,
+      withdrawalVolume,
+      totalVolume: chargeVolume + withdrawalVolume,
+      chargeFees,
+      withdrawalFees,
+      totalFeesEarned: chargeFees + withdrawalFees,
+      feesInAccount,
       avgCommissionPct: Math.round(avgCommission * 100) / 100,
-      totalMerchantPayout: totalVolume - totalFees,
+      totalMerchantPayout: chargeVolume - chargeFees,
     };
   }
 
   /**
-   * Fees desglosados por merchant
+   * Fees desglosados por merchant — cobros y retiros separados
    */
   async getEarningsByMerchant() {
-    const [charges, merchants] = await Promise.all([
+    const [charges, withdrawalFeeTxs, merchants] = await Promise.all([
       this.getChargeTxs(),
+      this.getWithdrawalFeeTxs(),
       this.merchants.findAll(),
     ]);
 
     const merchantMap = new Map(merchants.map((m) => [m.id, m]));
     const grouped = new Map<string, any>();
 
-    for (const tx of charges) {
-      const mid = tx.metadata.merchantId;
+    const ensureEntry = (mid: string) => {
       if (!grouped.has(mid)) {
         const m = merchantMap.get(mid);
         grouped.set(mid, {
           merchantId: mid,
           merchantName: m?.name ?? 'Unknown',
           merchantType: m?.type ?? 'UNKNOWN',
-          commissionPct: Number(tx.metadata.commissionPct),
+          commissionPct: m?.commissionPct ?? 0,
+          withdrawalFeePct: m?.withdrawalFeePct ?? 0,
           chargeCount: 0,
-          totalVolume: 0,
+          chargeVolume: 0,
+          chargeFees: 0,
+          withdrawalFeeCount: 0,
+          withdrawalVolume: 0,
+          withdrawalFees: 0,
           totalFees: 0,
           merchantPayout: 0,
         });
       }
-      const entry = grouped.get(mid);
+      return grouped.get(mid);
+    };
+
+    for (const tx of charges) {
+      const entry = ensureEntry(tx.metadata.merchantId);
       entry.chargeCount += 1;
-      entry.totalVolume += Number(tx.metadata.totalAmount);
-      entry.totalFees += Number(tx.metadata.feeAmount);
+      entry.chargeVolume += Number(tx.metadata.totalAmount);
+      entry.chargeFees += Number(tx.metadata.feeAmount);
       entry.merchantPayout += Number(tx.metadata.totalAmount) - Number(tx.metadata.feeAmount);
+    }
+
+    for (const tx of withdrawalFeeTxs) {
+      const entry = ensureEntry(tx.metadata.merchantId);
+      const gross = Number(tx.metadata.grossAmount ?? tx.metadata.totalAmount);
+      entry.withdrawalFeeCount += 1;
+      entry.withdrawalVolume += gross;
+      entry.withdrawalFees += Number(tx.metadata.feeAmount);
+    }
+
+    for (const entry of grouped.values()) {
+      entry.totalFees = entry.chargeFees + entry.withdrawalFees;
     }
 
     return [...grouped.values()].sort((a, b) => b.totalFees - a.totalFees);
@@ -153,17 +194,26 @@ export class BackofficeService {
           type,
           merchantCount: 0,
           chargeCount: 0,
+          chargeVolume: 0,
+          chargeFees: 0,
+          withdrawalFeeCount: 0,
+          withdrawalVolume: 0,
+          withdrawalFees: 0,
           totalVolume: 0,
           totalFees: 0,
           merchantPayout: 0,
-          avgCommissionPct: 0,
           _commissionSum: 0,
         });
       }
       const entry = grouped.get(type);
       entry.merchantCount += 1;
       entry.chargeCount += m.chargeCount;
-      entry.totalVolume += m.totalVolume;
+      entry.chargeVolume += m.chargeVolume;
+      entry.chargeFees += m.chargeFees;
+      entry.withdrawalFeeCount += m.withdrawalFeeCount;
+      entry.withdrawalVolume += m.withdrawalVolume;
+      entry.withdrawalFees += m.withdrawalFees;
+      entry.totalVolume += m.chargeVolume + m.withdrawalVolume;
       entry.totalFees += m.totalFees;
       entry.merchantPayout += m.merchantPayout;
       entry._commissionSum += m.commissionPct;
@@ -178,21 +228,23 @@ export class BackofficeService {
   }
 
   /**
-   * Lista detallada de cada fee cobrado
+   * Detalle de cada fee cobrado — charges y withdrawal_confirmed mezclados
    */
   async getFeeTransactions() {
-    const [charges, merchants] = await Promise.all([
+    const [charges, withdrawalFeeTxs, merchants] = await Promise.all([
       this.getChargeTxs(),
+      this.getWithdrawalFeeTxs(),
       this.merchants.findAll(),
     ]);
     const merchantMap = new Map(merchants.map((m) => [m.id, m]));
 
-    return charges.map((tx) => {
+    const chargeRows = charges.map((tx) => {
       const m = merchantMap.get(tx.metadata.merchantId);
       return {
         txId: tx.id,
         timestamp: tx.timestamp,
         reference: tx.reference,
+        txType: 'charge' as const,
         merchantId: tx.metadata.merchantId,
         merchantName: m?.name ?? 'Unknown',
         merchantType: m?.type ?? 'UNKNOWN',
@@ -200,8 +252,33 @@ export class BackofficeService {
         feeAmount: Number(tx.metadata.feeAmount),
         merchantAmount: Number(tx.metadata.totalAmount) - Number(tx.metadata.feeAmount),
         commissionPct: Number(tx.metadata.commissionPct),
+        withdrawalFeePct: null as number | null,
       };
     });
+
+    const withdrawalRows = withdrawalFeeTxs.map((tx) => {
+      const m = merchantMap.get(tx.metadata.merchantId);
+      const gross = Number(tx.metadata.grossAmount ?? tx.metadata.totalAmount);
+      const fee = Number(tx.metadata.feeAmount);
+      return {
+        txId: tx.id,
+        timestamp: tx.timestamp,
+        reference: tx.reference,
+        txType: 'withdrawal_confirmed' as const,
+        merchantId: tx.metadata.merchantId,
+        merchantName: m?.name ?? 'Unknown',
+        merchantType: m?.type ?? 'UNKNOWN',
+        totalAmount: gross,
+        feeAmount: fee,
+        merchantAmount: gross - fee,
+        commissionPct: null as number | null,
+        withdrawalFeePct: m?.withdrawalFeePct ?? null,
+      };
+    });
+
+    return [...chargeRows, ...withdrawalRows].sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+    );
   }
 
   // ──────────────────────────────────────────────────────────────────────────

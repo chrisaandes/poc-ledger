@@ -51,6 +51,7 @@ export class WalletService {
     return {
       merchantId,
       merchantName: merchant.name,
+      withdrawalFeePct: merchant.withdrawalFeePct ?? 0,
       available,
       inWithdrawal,
       total: available + inWithdrawal,

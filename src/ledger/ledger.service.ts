@@ -246,7 +246,8 @@ export class LedgerService implements OnModuleInit {
       metadata: {
         type: 'withdrawal_confirmed',
         merchantId,
-        grossAmount: String(amount),
+        totalAmount: String(amount),   // alias uniforme para earnings
+        grossAmount: String(amount),   // retrocompatibilidad con TXs históricas
         feeAmount: String(feeAmount),
         netAmount: String(netAmount),
       },

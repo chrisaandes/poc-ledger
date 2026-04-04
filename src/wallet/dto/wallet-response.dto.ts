@@ -7,6 +7,9 @@ export class WalletBalanceResponseDto {
   @ApiProperty({ example: 'Clínica Santa Fe' })
   merchantName: string;
 
+  @ApiProperty({ example: 1.5, description: 'Fee de retiro Bendo (%). Se descuenta del monto solicitado al retirar.' })
+  withdrawalFeePct: number;
+
   @ApiProperty({ example: 133860, description: 'Saldo disponible para retiro en centavos' })
   available: number;
 
