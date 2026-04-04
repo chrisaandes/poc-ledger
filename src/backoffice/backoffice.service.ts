@@ -1,12 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { LedgerService } from '../ledger/ledger.service';
 import { MerchantsService } from '../merchants/merchants.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class BackofficeService {
   constructor(
     private ledger: LedgerService,
     private merchants: MerchantsService,
+    private prisma: PrismaService,
   ) {}
 
   /**
@@ -64,6 +66,14 @@ export class BackofficeService {
    */
   async getLogs(params?: { pageSize?: number }) {
     return this.ledger.listLogs(params);
+  }
+
+  /**
+   * Truncate DB — elimina todos los merchants (solo testing)
+   */
+  async resetDatabase() {
+    await this.prisma.$executeRaw`TRUNCATE TABLE merchants RESTART IDENTITY CASCADE`;
+    return { message: 'Database reset — merchants table truncated' };
   }
 
   /**

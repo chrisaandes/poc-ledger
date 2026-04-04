@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Delete, Get, Param, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { BackofficeService } from './backoffice.service';
 
@@ -54,5 +54,11 @@ export class BackofficeController {
     return this.service.getLogs({
       pageSize: pageSize ? parseInt(pageSize) : undefined,
     });
+  }
+
+  @Delete('reset')
+  @ApiOperation({ summary: 'Truncate DB — elimina todos los merchants (solo para testing)' })
+  reset() {
+    return this.service.resetDatabase();
   }
 }
